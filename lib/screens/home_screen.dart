@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../config/constants.dart';
 import '../services/gemini_service.dart';
+import '../models/sentence_pair.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,9 +15,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _wordController = TextEditingController();
-  String? _selectedModel;
   bool _isLoading = false;
-  List<String> _sentences = [];
+  List<SentencePair> _sentences = [];
   final GeminiService _geminiService = GeminiService();
 
   @override
@@ -94,10 +94,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _copyToClipboard() {
     if (_sentences.isEmpty) return;
-    final text = _sentences.asMap().entries.map((e) => "${e.key + 1}. ${e.value}").join('\n');
+    final text = _sentences.asMap().entries.map((e) => "${e.key + 1}. ${e.value.english}\n   (${e.value.indonesian})").join('\n\n');
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Copied to clipboard!")),
+      const SnackBar(content: Text("Copied sentences and translations!")),
     );
   }
 
@@ -144,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 16),
 
-            // New Dropdown Selector
+            // Dropdown Selector
             DropdownButtonFormField<String>(
               value: _selectedModelName,
               decoration: InputDecoration(
@@ -212,11 +212,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ).animate().fadeIn(),
+              const SizedBox(height: 8),
+              Text(
+                "Tap a card to reveal Indonesian translation",
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                  fontStyle: FontStyle.italic,
+                ),
+              ).animate().fadeIn(delay: 100.ms),
               const SizedBox(height: 12),
               ..._sentences.asMap().entries.map((entry) {
                 int idx = entry.key;
-                String sentence = entry.value;
-                return _buildSentenceCard(idx + 1, sentence);
+                SentencePair pair = entry.value;
+                return _buildSentenceCard(idx + 1, pair);
               }),
             ],
 
@@ -228,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const CircularProgressIndicator(),
                     const SizedBox(height: 16),
                     Text(
-                      "Requesting Gemini 2.5 Flash...",
+                      "Requesting Gemini AI...",
                       style: GoogleFonts.outfit(
                         color: theme.colorScheme.outline,
                         fontStyle: FontStyle.italic,
@@ -243,44 +251,82 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSentenceCard(int number, String text) {
+  Widget _buildSentenceCard(int number, SentencePair pair) {
     final theme = Theme.of(context);
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
+        side: BorderSide(
+          color: pair.isTranslated ? theme.colorScheme.primary.withOpacity(0.5) : theme.colorScheme.outlineVariant,
+          width: pair.isTranslated ? 2 : 1,
+        ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 12,
-              backgroundColor: theme.colorScheme.primaryContainer,
-              child: Text(
-                number.toString(),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onPrimaryContainer,
-                ),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            pair.isTranslated = !pair.isTranslated;
+          });
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundColor: pair.isTranslated ? theme.colorScheme.primary : theme.colorScheme.primaryContainer,
+                    child: Text(
+                      number.toString(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: pair.isTranslated ? theme.colorScheme.onPrimary : theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      pair.english,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        height: 1.5,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                text,
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  height: 1.5,
-                  fontWeight: FontWeight.w500,
+              if (pair.isTranslated)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12.0, left: 40.0),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: theme.colorScheme.primaryContainer),
+                    ),
+                    child: Text(
+                      pair.indonesian,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontStyle: FontStyle.italic,
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ).animate().fadeIn().slideY(begin: -0.1, end: 0),
                 ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     ).animate().fadeIn(delay: (number * 100).ms).slideX(begin: 0.1, end: 0);

@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/constants.dart';
+import '../models/sentence_pair.dart';
 
 class GeminiService {
-  Future<List<String>> generateSentences(String word, String modelId) async {
+  Future<List<SentencePair>> generateSentences(String word, String modelId) async {
     final apiKey = AppConstants.geminiApiKey;
     
     final url = Uri.parse(
@@ -14,9 +15,9 @@ Generate exactly 5 different English sentences using the word: "$word".
 
 Rules:
 - The word must appear in every sentence.
-- Sentences must be natural and easy to understand.
-- Each sentence must be different.
-- Return only the sentences in numbered format.
+- Provide a clear and natural Indonesian translation for each sentence.
+- Return the result ONLY as a JSON array of objects with keys "en" and "id".
+- Example format: [{"en": "Sentence", "id": "Terjemahan"}]
 ''';
 
     print('Requesting Gemini with model: $modelId');
@@ -37,7 +38,7 @@ Rules:
             'temperature': 0.7,
             'topK': 40,
             'topP': 0.95,
-            'maxOutputTokens': 1024,
+            'maxOutputTokens': 2048, // Increased for translations
           }
         }),
       );
@@ -64,20 +65,27 @@ Rules:
     }
   }
 
-  List<String> _parseSentences(String text) {
-    final lines = text.split('\n');
-    final List<String> sentences = [];
-    
-    for (var line in lines) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty) continue;
+  List<SentencePair> _parseSentences(String text) {
+    try {
+      // Find the JSON array in the text (sometimes AI adds markdown blocks)
+      final jsonStart = text.indexOf('[');
+      final jsonEnd = text.lastIndexOf(']') + 1;
       
-      final cleanLine = trimmed.replaceFirst(RegExp(r'^[\d\-\.\)]+\s*'), '');
-      if (cleanLine.isNotEmpty) {
-        sentences.add(cleanLine);
+      if (jsonStart == -1 || jsonEnd == 0) {
+        throw Exception("Could not find JSON array in response");
       }
+      
+      final jsonPart = text.substring(jsonStart, jsonEnd);
+      final List<dynamic> list = jsonDecode(jsonPart);
+      
+      return list.map((item) => SentencePair(
+        english: item['en'] ?? '',
+        indonesian: item['id'] ?? '',
+      )).toList();
+    } catch (e) {
+      print('Parsing Error: $e');
+      // Fallback: If JSON parsing fails, return empty list or handle differently
+      throw Exception("Failed to parse AI response into sentences: $e");
     }
-    
-    return sentences.take(5).toList();
   }
 }
