@@ -85,6 +85,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _generateSentences(String word) async {
+    // Check key before starting to avoid loading state if key is missing locally
+    final key = await _storageService.getApiKey();
+    if (key == null || key.isEmpty) {
+      _showApiKeyMissingDialog();
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _sentences = [];
@@ -102,19 +109,95 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
       });
       print('UI Error Catch: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error: ${e.toString().replaceAll('Exception: ', '')}"),
-          backgroundColor: Colors.redAccent,
-          duration: const Duration(seconds: 5),
-          action: SnackBarAction(
-            label: 'Retry',
-            textColor: Colors.white,
-            onPressed: _validateAndGenerate,
+      
+      final errorStr = e.toString();
+      if (errorStr.contains('API Key is missing')) {
+        _showApiKeyMissingDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error: ${errorStr.replaceAll('Exception: ', '')}"),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _validateAndGenerate,
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
+  }
+
+  void _showApiKeyMissingDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.key_off_rounded, color: Colors.amber, size: 40),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                "API Key Required",
+                style: GoogleFonts.outfit(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "To use the sentence generator, you need to provide your own Gemini API key in the settings.",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 32),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text("Later", style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                        );
+                      },
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text("Go to Settings", style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack).fadeIn(),
+      ),
+    );
   }
 
   void _copyToClipboard() {
