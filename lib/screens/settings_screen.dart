@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/storage_service.dart';
 import '../models/api_key_model.dart';
+import '../services/tts_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -18,10 +19,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<ApiKey> _savedKeys = [];
   bool _obscureText = true;
 
+  List<Map<String, String>> _voices = [];
+  Map<String, String>? _selectedVoice;
+  bool _isVoicesLoading = true;
+
   @override
   void initState() {
     super.initState();
     _loadKeys();
+    _loadTtsVoices();
+  }
+
+  Future<void> _loadTtsVoices() async {
+    setState(() => _isVoicesLoading = true);
+    try {
+      final voicesData = await TtsService().getVoices();
+      final selected = await TtsService().getSelectedVoice();
+      
+      // Convert to List<Map<String, String>> once
+      final allVoices = voicesData.map((v) => Map<String, String>.from(v.cast<String, String>())).toList();
+      
+      // Filter for English voices
+      var enVoices = allVoices.where((v) => v['locale']?.startsWith('en') ?? false).toList();
+      
+      final finalVoices = enVoices.isNotEmpty ? enVoices : allVoices;
+
+      // Find the matching instance in finalVoices for _selectedVoice to satisfy DropdownButton equality
+      Map<String, String>? matchingSelected;
+      if (selected != null) {
+        try {
+          matchingSelected = finalVoices.firstWhere(
+            (v) => v['name'] == selected['name'] && v['locale'] == selected['locale']
+          );
+        } catch (_) {
+          // If not found in filtered list, add it to the list so dropdown doesn't crash
+          finalVoices.insert(0, selected);
+          matchingSelected = selected;
+        }
+      }
+      
+      setState(() {
+        _voices = finalVoices;
+        _selectedVoice = matchingSelected;
+        _isVoicesLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isVoicesLoading = false);
+      print("Error loading voices: $e");
+    }
   }
 
   Future<void> _loadKeys() async {
@@ -68,6 +113,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _buildSectionHeader(theme, "TTS Voice Settings", Icons.record_voice_over),
+            const SizedBox(height: 16),
+            if (_isVoicesLoading)
+              const Center(child: CircularProgressIndicator())
+            else
+              DropdownButtonFormField<Map<String, String>>(
+                value: _selectedVoice,
+                decoration: InputDecoration(
+                  labelText: "Select English Voice",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon: const Icon(Icons.spatial_audio_off),
+                  filled: true,
+                  fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                ),
+                hint: const Text("Default System Voice"),
+                items: _voices.map((voiceMap) {
+                  return DropdownMenuItem<Map<String, String>>(
+                    value: voiceMap,
+                    child: Text(
+                      "${voiceMap['name']} (${voiceMap['locale']})",
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) async {
+                  if (value != null) {
+                    await TtsService().setVoice(value);
+                    setState(() => _selectedVoice = value);
+                    TtsService().speak("This is a sample of the selected voice.");
+                  }
+                },
+              ),
+            
+            const SizedBox(height: 32),
+            
             _buildSectionHeader(theme, "Add New API Key", Icons.add_link),
             const SizedBox(height: 16),
             TextField(

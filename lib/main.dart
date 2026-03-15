@@ -11,6 +11,7 @@ void main() async {
   await Hive.initFlutter();
   await Hive.openBox('vocabulary_box');
   await Hive.openBox('api_keys_box');
+  await Hive.openBox('settings_box');
   
   // Initialize TTS
   await TtsService().init();
