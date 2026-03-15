@@ -5,6 +5,8 @@ import 'package:uuid/uuid.dart';
 class StorageService {
   static final StorageService _instance = StorageService._internal();
   static const String _boxName = 'api_keys_box';
+  static const String _settingsBox = 'settings_box';
+  static const String _themeKey = 'preferred_theme';
   final _uuid = const Uuid();
 
   factory StorageService() => _instance;
@@ -46,5 +48,16 @@ class StorageService {
 
   Future<void> deleteKey(String id) async {
     await _box.delete(id);
+  }
+
+  // Theme support
+  Future<void> setTheme(String themeName) async {
+    final box = Hive.box(_settingsBox);
+    await box.put(_themeKey, themeName);
+  }
+
+  Future<String> getTheme() async {
+    final box = Hive.box(_settingsBox);
+    return box.get(_themeKey, defaultValue: 'Teal');
   }
 }

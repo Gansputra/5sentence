@@ -49,6 +49,7 @@ class _SplashScreenState extends State<SplashScreen> {
             colors: [
               theme.colorScheme.primary,
               theme.colorScheme.secondary,
+              theme.colorScheme.tertiary.withOpacity(0.8),
             ],
           ),
         ),

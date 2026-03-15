@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../models/vocabulary.dart';
 import '../services/database_service.dart';
 import '../services/tts_service.dart';
+import '../config/theme_config.dart';
 
 class VocabularyScreen extends StatefulWidget {
   const VocabularyScreen({super.key});
@@ -102,11 +103,13 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
+      color: Colors.transparent,
+      child: GlassContainer(
+        opacity: 0.08,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-      child: ListTile(
+        blur: 10,
+        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.2)),
+        child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         title: Row(
           children: [
@@ -167,8 +170,9 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
           },
         ),
       ),
-    ).animate().fadeIn(delay: (index * 50).ms).slideX(begin: 0.05, end: 0);
-  }
+    ),
+  ).animate().fadeIn(delay: (index * 50).ms).slideX(begin: 0.05, end: 0);
+}
 
   Widget _buildEmptyState() {
     return Center(

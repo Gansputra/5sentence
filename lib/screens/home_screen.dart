@@ -12,6 +12,7 @@ import '../models/api_key_model.dart';
 import 'settings_screen.dart';
 import 'vocabulary_screen.dart';
 import '../services/tts_service.dart';
+import '../config/theme_config.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -463,14 +464,16 @@ class _HomeScreenState extends State<HomeScreen> {
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
+      color: Colors.transparent,
+      child: GlassContainer(
+        opacity: pair.isTranslated ? 0.2 : 0.08,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: pair.isTranslated ? theme.colorScheme.primary.withOpacity(0.5) : theme.colorScheme.outlineVariant,
+        blur: 10,
+        border: Border.all(
+          color: pair.isTranslated ? theme.colorScheme.primary.withOpacity(0.5) : theme.colorScheme.outlineVariant.withOpacity(0.2),
           width: pair.isTranslated ? 2 : 1,
         ),
-      ),
-      child: InkWell(
+        child: InkWell(
         onTap: () {
           setState(() {
             pair.isTranslated = !pair.isTranslated;
@@ -547,6 +550,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-    ).animate().fadeIn(delay: (number * 100).ms).slideX(begin: 0.1, end: 0);
-  }
+    ),
+  ).animate().fadeIn(delay: (number * 100).ms).slideX(begin: 0.1, end: 0);
+}
 }

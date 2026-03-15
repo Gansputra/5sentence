@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/storage_service.dart';
 import '../models/api_key_model.dart';
 import '../services/tts_service.dart';
+import '../config/theme_config.dart';
+import '../main.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -105,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text("Gemini Settings", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        title: Text("Settings & UI", style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -113,6 +115,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _buildSectionHeader(theme, "App Theme", Icons.palette_outlined),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: AppTheme.themes.map((appTheme) {
+                final isSelected = themeNotifier.value == appTheme.name;
+                return InkWell(
+                  onTap: () async {
+                    await _storageService.setTheme(appTheme.name);
+                    themeNotifier.value = appTheme.name;
+                  },
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: appTheme.seedColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected ? theme.colorScheme.primary : Colors.transparent,
+                            width: 3,
+                          ),
+                          boxShadow: [
+                            if (isSelected)
+                              BoxShadow(
+                                color: appTheme.seedColor.withOpacity(0.4),
+                                blurRadius: 8,
+                                spreadRadius: 2,
+                              ),
+                          ],
+                        ),
+                        child: isSelected 
+                          ? Icon(Icons.check, color: appTheme.brightness == Brightness.dark ? Colors.white : Colors.black)
+                          : null,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        appTheme.name,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+            
+            const SizedBox(height: 32),
+            
             _buildSectionHeader(theme, "TTS Voice Settings", Icons.record_voice_over),
             const SizedBox(height: 16),
             if (_isVoicesLoading)
@@ -263,18 +317,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildSectionHeader(ThemeData theme, String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: theme.colorScheme.primary),
-        const SizedBox(width: 12),
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.primary,
+    return GlassContainer(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      opacity: 0.05,
+      borderRadius: BorderRadius.circular(12),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: theme.colorScheme.primary),
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
