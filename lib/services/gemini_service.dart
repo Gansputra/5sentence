@@ -11,11 +11,7 @@ class GeminiService {
     // Try to get key from storage, fall back to constants
     String? apiKey = await _storageService.getApiKey();
     if (apiKey == null || apiKey.isEmpty) {
-      apiKey = AppConstants.geminiApiKey;
-    }
-    
-    if (apiKey == 'AIzaSyCzJOWbCTRXg1fMnz-CkWtlVvSf6gTfVNQ' || apiKey.isEmpty) {
-      throw Exception('Please set your Gemini API Key in Settings');
+      throw Exception('Gemini API Key is missing. Please go to Settings and enter your API Key.');
     }
     
     final url = Uri.parse(

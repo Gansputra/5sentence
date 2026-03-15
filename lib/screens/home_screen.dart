@@ -7,6 +7,8 @@ import '../services/gemini_service.dart';
 import '../models/sentence_pair.dart';
 import 'settings_screen.dart';
 
+import '../services/storage_service.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -19,6 +21,28 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   List<SentencePair> _sentences = [];
   final GeminiService _geminiService = GeminiService();
+  final StorageService _storageService = StorageService();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkApiKey();
+  }
+
+  Future<void> _checkApiKey() async {
+    final key = await _storageService.getApiKey();
+    if (key == null || key.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please set your Gemini API Key in Settings to start.'),
+            duration: Duration(seconds: 5),
+            backgroundColor: Colors.blueAccent,
+          ),
+        );
+      });
+    }
+  }
 
   @override
   void dispose() {

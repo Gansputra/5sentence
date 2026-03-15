@@ -25,10 +25,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final key = await _storageService.getApiKey();
     if (key != null) {
       _apiKeyController.text = key;
-    } else {
-      // Fallback to hardcoded key if nothing is saved yet
-      _apiKeyController.text = AppConstants.geminiApiKey == 'AIzaSyCzJOWbCTRXg1fMnz-CkWtlVvSf6gTfVNQ' 
-          ? '' : AppConstants.geminiApiKey;
     }
   }
 
