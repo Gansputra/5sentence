@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../models/vocabulary.dart';
 import '../services/database_service.dart';
+import '../services/tts_service.dart';
 
 class VocabularyScreen extends StatefulWidget {
   const VocabularyScreen({super.key});
@@ -107,13 +108,31 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        title: Text(
-          vocab.word,
-          style: GoogleFonts.inter(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.primary,
-          ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                vocab.word,
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: Icon(
+                Icons.volume_up_rounded,
+                color: theme.colorScheme.primary.withOpacity(0.7),
+                size: 20,
+              ),
+              onPressed: () => TtsService().speak(vocab.word),
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              tooltip: "Listen",
+            ),
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

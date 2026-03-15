@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'screens/splash_screen.dart';
+import 'services/tts_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -10,6 +11,9 @@ void main() async {
   await Hive.initFlutter();
   await Hive.openBox('vocabulary_box');
   await Hive.openBox('api_keys_box');
+  
+  // Initialize TTS
+  await TtsService().init();
   
   runApp(const MyApp());
 }

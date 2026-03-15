@@ -11,6 +11,7 @@ import '../models/vocabulary.dart';
 import '../models/api_key_model.dart';
 import 'settings_screen.dart';
 import 'vocabulary_screen.dart';
+import '../services/tts_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -307,6 +308,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 labelText: "Enter English Word",
                 hintText: "e.g. Serendipity",
                 prefixIcon: const Icon(Icons.abc),
+                suffixIcon: _wordController.text.isNotEmpty 
+                  ? IconButton(
+                      icon: const Icon(Icons.volume_up_rounded),
+                      onPressed: () => TtsService().speak(_wordController.text.trim()),
+                      tooltip: "Listen",
+                    )
+                  : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -499,6 +507,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: theme.colorScheme.onSurface,
                       ),
                     ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.volume_up_rounded,
+                      color: theme.colorScheme.primary.withOpacity(0.7),
+                      size: 20,
+                    ),
+                    onPressed: () => TtsService().speak(pair.english),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: "Listen",
                   ),
                 ],
               ),
