@@ -2,10 +2,21 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/sentence_pair.dart';
+import 'storage_service.dart';
 
 class GeminiService {
+  final StorageService _storageService = StorageService();
+
   Future<List<SentencePair>> generateSentences(String word, String modelId) async {
-    final apiKey = AppConstants.geminiApiKey;
+    // Try to get key from storage, fall back to constants
+    String? apiKey = await _storageService.getApiKey();
+    if (apiKey == null || apiKey.isEmpty) {
+      apiKey = AppConstants.geminiApiKey;
+    }
+    
+    if (apiKey == 'AIzaSyCzJOWbCTRXg1fMnz-CkWtlVvSf6gTfVNQ' || apiKey.isEmpty) {
+      throw Exception('Please set your Gemini API Key in Settings');
+    }
     
     final url = Uri.parse(
         'https://generativelanguage.googleapis.com/v1beta/models/$modelId:generateContent?key=$apiKey');
@@ -38,7 +49,7 @@ Rules:
             'temperature': 0.7,
             'topK': 40,
             'topP': 0.95,
-            'maxOutputTokens': 2048, // Increased for translations
+            'maxOutputTokens': 2048,
           }
         }),
       );
@@ -53,7 +64,6 @@ Rules:
         }
 
         final String text = data['candidates'][0]['content']['parts'][0]['text'];
-        print('Raw Text: $text');
         
         return _parseSentences(text);
       } else {
@@ -67,7 +77,6 @@ Rules:
 
   List<SentencePair> _parseSentences(String text) {
     try {
-      // Find the JSON array in the text (sometimes AI adds markdown blocks)
       final jsonStart = text.indexOf('[');
       final jsonEnd = text.lastIndexOf(']') + 1;
       
@@ -84,7 +93,6 @@ Rules:
       )).toList();
     } catch (e) {
       print('Parsing Error: $e');
-      // Fallback: If JSON parsing fails, return empty list or handle differently
       throw Exception("Failed to parse AI response into sentences: $e");
     }
   }

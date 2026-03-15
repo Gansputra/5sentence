@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../config/constants.dart';
 import '../services/gemini_service.dart';
 import '../models/sentence_pair.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -112,6 +113,16 @@ class _HomeScreenState extends State<HomeScreen> {
           style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.settings),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SettingsScreen()),
+            );
+          },
+          tooltip: "Settings",
+        ),
         actions: [
           if (_sentences.isNotEmpty)
             IconButton(
