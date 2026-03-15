@@ -1,0 +1,192 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../models/vocabulary.dart';
+import '../services/database_service.dart';
+
+class VocabularyScreen extends StatefulWidget {
+  const VocabularyScreen({super.key});
+
+  @override
+  State<VocabularyScreen> createState() => _VocabularyScreenState();
+}
+
+class _VocabularyScreenState extends State<VocabularyScreen> {
+  final DatabaseService _dbService = DatabaseService();
+  List<Vocabulary> _vocabularyList = [];
+  bool _isLoading = true;
+  String _searchQuery = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVocabulary();
+  }
+
+  Future<void> _loadVocabulary() async {
+    setState(() => _isLoading = true);
+    final list = await _dbService.getAllVocabulary();
+    setState(() {
+      _vocabularyList = list;
+      _isLoading = false;
+    });
+  }
+
+  List<Vocabulary> get _filteredList {
+    if (_searchQuery.isEmpty) return _vocabularyList;
+    return _vocabularyList.where((v) => 
+      v.word.contains(_searchQuery.toLowerCase()) || 
+      v.meaning.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+      v.category.toLowerCase().contains(_searchQuery.toLowerCase())
+    ).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          "My Vocabulary",
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_outlined),
+            onPressed: () => _showClearDialog(),
+            tooltip: "Clear All",
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: "Search words or categories...",
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                filled: true,
+                fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+              ),
+              onChanged: (value) => setState(() => _searchQuery = value),
+            ),
+          ),
+          Expanded(
+            child: _isLoading 
+              ? const Center(child: CircularProgressIndicator())
+              : _filteredList.isEmpty
+                  ? _buildEmptyState()
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _filteredList.length,
+                      itemBuilder: (context, index) {
+                        final vocab = _filteredList[index];
+                        return _buildVocabCard(vocab, index);
+                      },
+                    ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVocabCard(Vocabulary vocab, int index) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        title: Text(
+          vocab.word,
+          style: GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              vocab.meaning,
+              style: GoogleFonts.inter(fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                vocab.category,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSecondaryContainer,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.delete_outline, size: 20),
+          onPressed: () async {
+            await _dbService.deleteVocabularyByWord(vocab.word);
+            _loadVocabulary();
+          },
+        ),
+      ),
+    ).animate().fadeIn(delay: (index * 50).ms).slideX(begin: 0.05, end: 0);
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.auto_stories_outlined, size: 64, color: Colors.grey.withOpacity(0.5)),
+          const SizedBox(height: 16),
+          Text(
+            "No vocabulary yet",
+            style: GoogleFonts.outfit(fontSize: 18, color: Colors.grey),
+          ),
+          const SizedBox(height: 8),
+          const Text("Generate some sentences to start building your list!"),
+        ],
+      ),
+    );
+  }
+
+  void _showClearDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Clear All Vocabulary?"),
+        content: const Text("This action cannot be undone."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () async {
+              await _dbService.clearAll();
+              Navigator.pop(context);
+              _loadVocabulary();
+            }, 
+            child: const Text("Clear", style: TextStyle(color: Colors.red))
+          ),
+        ],
+      ),
+    );
+  }
+}

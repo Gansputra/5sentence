@@ -4,10 +4,13 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../config/constants.dart';
 import '../services/gemini_service.dart';
-import '../models/sentence_pair.dart';
-import 'settings_screen.dart';
-
 import '../services/storage_service.dart';
+import '../services/database_service.dart';
+import '../models/sentence_pair.dart';
+import '../models/vocabulary.dart';
+import '../models/api_key_model.dart';
+import 'settings_screen.dart';
+import 'vocabulary_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,16 +25,32 @@ class _HomeScreenState extends State<HomeScreen> {
   List<SentencePair> _sentences = [];
   final GeminiService _geminiService = GeminiService();
   final StorageService _storageService = StorageService();
+  final DatabaseService _dbService = DatabaseService();
+
+  List<ApiKey> _apiKeys = [];
+  ApiKey? _activeKey;
 
   @override
   void initState() {
     super.initState();
-    _checkApiKey();
+    _loadApiKeys();
   }
 
-  Future<void> _checkApiKey() async {
-    final key = await _storageService.getApiKey();
-    if (key == null || key.isEmpty) {
+  Future<void> _loadApiKeys() async {
+    final keys = await _storageService.getAllApiKeys();
+    ApiKey? active;
+    try {
+      active = keys.firstWhere((k) => k.isActive);
+    } catch (_) {
+      active = keys.isNotEmpty ? keys.first : null;
+    }
+    
+    setState(() {
+      _apiKeys = keys;
+      _activeKey = active;
+    });
+
+    if (active == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -42,6 +61,10 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       });
     }
+  }
+
+  Future<void> _checkApiKey() async {
+    // This is now handled by _loadApiKeys
   }
 
   @override
@@ -55,7 +78,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void _validateAndGenerate() {
     final input = _wordController.text.trim();
 
-    // Validation
     if (input.isEmpty || 
         input.contains(' ') || 
         !RegExp(r'^[a-zA-Z]+$').hasMatch(input)) {
@@ -85,8 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _generateSentences(String word) async {
-    // Check key before starting to avoid loading state if key is missing locally
-    final key = await _storageService.getApiKey();
+    final key = await _storageService.getActiveKey();
     if (key == null || key.isEmpty) {
       _showApiKeyMissingDialog();
       return;
@@ -99,11 +120,36 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final modelId = AppConstants.models[_selectedModelName]!;
-      final results = await _geminiService.generateSentences(word, modelId);
+      final response = await _geminiService.generateContent(word, modelId);
+      
       setState(() {
-        _sentences = results;
+        _sentences = response.sentences;
         _isLoading = false;
       });
+
+      // Save vocabulary to local database
+      for (var vocab in response.vocabulary) {
+        await _dbService.insertVocabulary(vocab);
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Saved ${response.vocabulary.length} new words to your vocabulary!"),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+            action: SnackBarAction(
+              label: 'VIEW',
+              textColor: Colors.white,
+              onPressed: () => Navigator.push(
+                context, 
+                MaterialPageRoute(builder: (context) => const VocabularyScreen())
+              ),
+            ),
+          ),
+        );
+      }
+      
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -222,15 +268,26 @@ class _HomeScreenState extends State<HomeScreen> {
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.settings),
-          onPressed: () {
-            Navigator.push(
+          onPressed: () async {
+            await Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const SettingsScreen()),
             );
+            _loadApiKeys(); // Refresh keys when returning from settings
           },
           tooltip: "Settings",
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_stories),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const VocabularyScreen()),
+              );
+            },
+            tooltip: "Vocabulary",
+          ),
           if (_sentences.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.copy_all),
@@ -244,7 +301,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Input TextField
             TextField(
               controller: _wordController,
               decoration: InputDecoration(
@@ -262,7 +318,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 16),
 
-            // Dropdown Selector
+            if (_apiKeys.isNotEmpty) ...[
+              DropdownButtonFormField<ApiKey>(
+                value: _activeKey,
+                decoration: InputDecoration(
+                  labelText: "Active API Key",
+                  prefixIcon: const Icon(Icons.key),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  filled: true,
+                  fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                ),
+                items: _apiKeys.map((k) {
+                  return DropdownMenuItem(
+                    value: k,
+                    child: Text(k.name),
+                  );
+                }).toList(),
+                onChanged: (value) async {
+                  if (value != null) {
+                    await _storageService.setActiveKey(value.id);
+                    setState(() => _activeKey = value);
+                  }
+                },
+              ).animate().fadeIn(duration: 400.ms, delay: 50.ms).slideY(begin: 0.1, end: 0),
+              const SizedBox(height: 16),
+            ],
+
             DropdownButtonFormField<String>(
               value: _selectedModelName,
               decoration: InputDecoration(
@@ -289,7 +370,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 24),
 
-            // Generate Button
             FilledButton.icon(
               onPressed: (_isLoading || _wordController.text.trim().isEmpty || _selectedModelName == null)
                   ? null

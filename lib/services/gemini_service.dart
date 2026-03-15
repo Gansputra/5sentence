@@ -2,14 +2,15 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/constants.dart';
 import '../models/sentence_pair.dart';
+import '../models/vocabulary.dart';
+import '../models/gemini_response.dart';
 import 'storage_service.dart';
 
 class GeminiService {
   final StorageService _storageService = StorageService();
 
-  Future<List<SentencePair>> generateSentences(String word, String modelId) async {
-    // Try to get key from storage, fall back to constants
-    String? apiKey = await _storageService.getApiKey();
+  Future<GeminiResponse> generateContent(String word, String modelId) async {
+    String? apiKey = await _storageService.getActiveKey();
     if (apiKey == null || apiKey.isEmpty) {
       throw Exception('Gemini API Key is missing. Please go to Settings and enter your API Key.');
     }
@@ -18,13 +19,14 @@ class GeminiService {
         'https://generativelanguage.googleapis.com/v1beta/models/$modelId:generateContent?key=$apiKey');
 
     final prompt = '''
-Generate exactly 5 different English sentences using the word: "$word".
+Create 5 English sentences with "$word" (with Indonesian translations).
+Also, list every unique word from those sentences with its Indonesian meaning and category (Noun, Verb, Adjective, etc.).
 
-Rules:
-- The word must appear in every sentence.
-- Provide a clear and natural Indonesian translation for each sentence.
-- Return the result ONLY as a JSON array of objects with keys "en" and "id".
-- Example format: [{"en": "Sentence", "id": "Terjemahan"}]
+Return ONLY a JSON with this structure:
+{
+  "sentences": [{"en": "...", "id": "..."}],
+  "vocabulary": [{"word": "...", "meaning": "...", "category": "..."}]
+}
 ''';
 
     print('Requesting Gemini with model: $modelId');
@@ -42,26 +44,24 @@ Rules:
             }
           ],
           'generationConfig': {
-            'temperature': 0.7,
+            'temperature': 0.1, // Lower temperature for more consistent JSON
             'topK': 40,
             'topP': 0.95,
-            'maxOutputTokens': 2048,
+            'maxOutputTokens': 4096,
+            'responseMimeType': 'application/json', // Force JSON response
           }
         }),
       );
 
-      print('Response Status: ${response.statusCode}');
-      
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         
         if (data['candidates'] == null || data['candidates'].isEmpty) {
-           throw Exception('No candidates returned from Gemini. Body: ${response.body}');
+           throw Exception('No candidates returned from Gemini.');
         }
 
         final String text = data['candidates'][0]['content']['parts'][0]['text'];
-        
-        return _parseSentences(text);
+        return _parseResponse(text);
       } else {
         throw Exception('API Error (${response.statusCode}): ${response.body}');
       }
@@ -71,25 +71,30 @@ Rules:
     }
   }
 
-  List<SentencePair> _parseSentences(String text) {
+  GeminiResponse _parseResponse(String text) {
     try {
-      final jsonStart = text.indexOf('[');
-      final jsonEnd = text.lastIndexOf(']') + 1;
+      // Clean output just in case (though responseMimeType should handle it)
+      final cleanText = text.trim();
+      final Map<String, dynamic> data = jsonDecode(cleanText);
       
-      if (jsonStart == -1 || jsonEnd == 0) {
-        throw Exception("Could not find JSON array in response");
-      }
+      final List<dynamic> sentenceList = data['sentences'] ?? [];
+      final List<dynamic> vocabList = data['vocabulary'] ?? [];
       
-      final jsonPart = text.substring(jsonStart, jsonEnd);
-      final List<dynamic> list = jsonDecode(jsonPart);
-      
-      return list.map((item) => SentencePair(
+      final sentences = sentenceList.map((item) => SentencePair(
         english: item['en'] ?? '',
         indonesian: item['id'] ?? '',
       )).toList();
+      
+      final vocabulary = vocabList.map((item) => Vocabulary(
+        word: item['word'] ?? '',
+        meaning: item['meaning'] ?? '',
+        category: item['category'] ?? 'Common Word',
+      )).toList();
+      
+      return GeminiResponse(sentences: sentences, vocabulary: vocabulary);
     } catch (e) {
-      print('Parsing Error: $e');
-      throw Exception("Failed to parse AI response into sentences: $e");
+      print('Parsing Error: $e. Raw text: $text');
+      throw Exception("Failed to parse AI response: $e");
     }
   }
 }
