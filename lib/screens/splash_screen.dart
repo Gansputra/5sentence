@@ -145,7 +145,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 height: 40,
                 child: CircularProgressIndicator(
                   strokeWidth: 3,
-                  valueColor: AlwaysStoppedAnimation<Colors>(Colors.white70),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
                 ),
               ).animate().fadeIn(delay: 2000.ms),
             ),
