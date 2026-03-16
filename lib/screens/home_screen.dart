@@ -15,6 +15,7 @@ import 'vocabulary_screen.dart';
 import '../services/tts_service.dart';
 import '../config/theme_config.dart';
 import '../widgets/study_card_export.dart';
+import '../services/speech_service.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
@@ -420,6 +421,160 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showPracticeDialog(SentencePair pair) {
+    String recognizedText = "";
+    bool isListening = false;
+    double score = 0.0;
+    final speechService = SpeechService();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final theme = Theme.of(context);
+          return Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  "Practice Pronunciation",
+                  style: GoogleFonts.outfit(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                GlassContainer(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
+                    pair.english,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                if (recognizedText.isNotEmpty) ...[
+                  Text(
+                    "You said:",
+                    style: theme.textTheme.labelMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    recognizedText,
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "Score: ",
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        "${(score * 100).toInt()}%",
+                        style: GoogleFonts.outfit(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 24,
+                          color: score > 0.8 
+                            ? Colors.green 
+                            : score > 0.5 
+                              ? Colors.orange 
+                              : Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 40),
+                GestureDetector(
+                  onTapDown: (_) async {
+                    await speechService.startListening(
+                      onResult: (text) {
+                        setModalState(() {
+                          recognizedText = text;
+                          score = speechService.getSimilarity(recognizedText, pair.english);
+                        });
+                      },
+                      onListeningStateChanged: (listening) {
+                        setModalState(() => isListening = listening);
+                      },
+                    );
+                  },
+                  onTapUp: (_) async {
+                    await speechService.stopListening();
+                    setModalState(() => isListening = false);
+                  },
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: isListening 
+                            ? theme.colorScheme.errorContainer 
+                            : theme.colorScheme.primaryContainer,
+                          shape: BoxShape.circle,
+                          boxShadow: isListening ? [
+                            BoxShadow(
+                              color: theme.colorScheme.error.withOpacity(0.3),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                            )
+                          ] : [],
+                        ),
+                        child: Icon(
+                          isListening ? Icons.mic : Icons.mic_none,
+                          size: 32,
+                          color: isListening 
+                            ? theme.colorScheme.error 
+                            : theme.colorScheme.primary,
+                        ),
+                      ).animate(target: isListening ? 1 : 0)
+                        .scale(begin: const Offset(1, 1), end: const Offset(1.2, 1.2), duration: 200.ms)
+                        .boxShadow(end: BoxShadow(color: theme.colorScheme.error.withOpacity(0.3), blurRadius: 20)),
+                      const SizedBox(height: 12),
+                      Text(
+                        isListening ? "Listening..." : "Hold to Speak",
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w500,
+                          color: isListening ? theme.colorScheme.error : theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _copyToClipboard() {
     if (_sentences.isEmpty) return;
     final text = _sentences.asMap().entries.map((e) => "${e.key + 1}. ${e.value.english}\n   (${e.value.indonesian})").join('\n\n');
@@ -700,6 +855,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     tooltip: "Listen",
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: Icon(
+                      Icons.mic_none_rounded,
+                      color: theme.colorScheme.secondary.withOpacity(0.7),
+                      size: 20,
+                    ),
+                    onPressed: () => _showPracticeDialog(pair),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: "Practice",
                   ),
                 ],
               ),

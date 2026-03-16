@@ -24,7 +24,7 @@ class GeminiService {
     final prompt =
         '''
 Create exactly 5 English sentences using the word "$word" and provide their Indonesian translations.
-Also, extract all unique vocabulary words from those sentences with their Indonesian meanings and grammatical categories (Noun, Verb, etc.).
+Also, extract up to 10 most interesting vocabulary words from those sentences with their Indonesian meanings and grammatical categories (Noun, Verb, etc.).
 
 Return the data STRICTLY as a JSON object with this exact structure:
 {
@@ -172,7 +172,7 @@ IMPORTANT: Ensure the JSON is complete and valid. Do not include any text before
               !cleanText.endsWith('}'))) {
         try {
           final repairedJson = _repairTruncatedJson(cleanText);
-          if (repairedJson != null) {
+          if (repairedJson != null && repairedJson != cleanText) {
             print('Attempting to parse repaired JSON...');
             return _parseResponse(repairedJson);
           }
@@ -185,28 +185,36 @@ IMPORTANT: Ensure the JSON is complete and valid. Do not include any text before
     }
   }
 
-  /// Extremely simple JSON repair for common truncation scenarios
+  /// Improved JSON repair: strips partial text and closes braces
   String? _repairTruncatedJson(String jsonStr) {
-    // Count open/close delimiters
-    int openBraces = '{'.allMatches(jsonStr).length;
-    int closeBraces = '}'.allMatches(jsonStr).length;
-    int openBrackets = '['.allMatches(jsonStr).length;
-    int closeBrackets = ']'.allMatches(jsonStr).length;
-
     String repaired = jsonStr.trim();
-
-    // If it ends mid-key or mid-value, try to close the quote
-    if (repaired.split('"').length % 2 == 0) {
-      repaired += '"';
+    
+    // 1. Strip trailing partial property/value (anything after the last valid complete object/array element)
+    // We look for the last comma or the start of the last object/array
+    final lastComma = repaired.lastIndexOf(',');
+    final lastOpenBrace = repaired.lastIndexOf('{');
+    final lastOpenBracket = repaired.lastIndexOf('[');
+    
+    // If it looks like we're in the middle of a key-value pair, cut back to the last comma
+    if (lastComma > lastOpenBrace && lastComma > lastOpenBracket) {
+      repaired = repaired.substring(0, lastComma);
+    } else if (lastOpenBrace > lastComma) {
+      // We are inside an unfinished object, cut back to before this object if possible
+      repaired = repaired.substring(0, lastOpenBrace).trim();
+      if (repaired.endsWith(',')) repaired = repaired.substring(0, repaired.length - 1);
     }
 
-    // Close objects and arrays in reverse order
+    // 2. Count open/close delimiters
+    int openBraces = '{'.allMatches(repaired).length;
+    int closeBraces = '}'.allMatches(repaired).length;
+    int openBrackets = '['.allMatches(repaired).length;
+    int closeBrackets = ']'.allMatches(repaired).length;
+
+    // 3. Close open brackets and braces
     while (openBrackets > closeBrackets) {
-      repaired += '}]'; // Attempt to close current item then array
+      repaired += ']';
       closeBrackets++;
-      closeBraces++; // Assuming inside an object inside array
     }
-
     while (openBraces > closeBraces) {
       repaired += '}';
       closeBraces++;
@@ -215,8 +223,25 @@ IMPORTANT: Ensure the JSON is complete and valid. Do not include any text before
     try {
       jsonDecode(repaired);
       return repaired;
-    } catch (_) {
-      return null;
+    } catch (e) {
+      print('Manual repair failed second pass: $e');
+      // If still fails, try one more time by just closing whatever is open
+      return _basicClose(jsonStr);
     }
+  }
+
+  String _basicClose(String jsonStr) {
+    String repaired = jsonStr.trim();
+    if (repaired.split('"').length % 2 == 0) repaired += '"';
+    
+    int openBraces = '{'.allMatches(repaired).length;
+    int closeBraces = '}'.allMatches(repaired).length;
+    int openBrackets = '['.allMatches(repaired).length;
+    int closeBrackets = ']'.allMatches(repaired).length;
+
+    while (openBrackets > closeBrackets) { repaired += ']'; closeBrackets++; }
+    while (openBraces > closeBraces) { repaired += '}'; closeBraces++; }
+    
+    return repaired;
   }
 }
