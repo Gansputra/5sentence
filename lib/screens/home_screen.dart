@@ -144,8 +144,17 @@ class _HomeScreenState extends State<HomeScreen> {
       });
 
       // Save vocabulary to local database
+      // We attach the 5 sentences to ALL vocabulary words generated in this session 
+      // so they all have context.
       for (var vocab in response.vocabulary) {
-        await _dbService.insertVocabulary(vocab);
+        final vocabWithSentences = Vocabulary(
+          id: vocab.id,
+          word: vocab.word.trim(), // Clean up any spaces
+          meaning: vocab.meaning,
+          category: vocab.category,
+          sentences: response.sentences,
+        );
+        await _dbService.insertVocabulary(vocabWithSentences);
       }
       
       if (mounted) {
