@@ -431,6 +431,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  String _getFeedbackMessage(double score) {
+    if (score >= 1.0) return "Perfection! You sound like a native speaker! 🌟";
+    if (score >= 0.8) return "Excellent! Almost perfect, keep it up! 🚀";
+    if (score >= 0.5) return "Good job! You're clearly getting there. 💪";
+    if (score >= 0.3) return "Keep trying! Focus on the rhythm. 🎧";
+    return "Don't give up! Look at the sentence and try again. ❤️";
+  }
+
   void _showPracticeDialog(SentencePair pair) {
     String recognizedText = "";
     bool isListening = false;
@@ -518,6 +526,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: (score > 0.8 ? Colors.green : score > 0.5 ? Colors.orange : Colors.red).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _getFeedbackMessage(score),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w600,
+                        color: score > 0.8 ? Colors.green : score > 0.5 ? Colors.orange : Colors.red,
+                      ),
+                    ),
+                  ).animate(key: ValueKey(score)).fadeIn().scale(begin: const Offset(0.9, 0.9)),
                 ],
                 const SizedBox(height: 40),
                 GestureDetector(
