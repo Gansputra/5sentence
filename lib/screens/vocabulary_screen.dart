@@ -116,13 +116,27 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
         title: Row(
           children: [
             Expanded(
-              child: Text(
-                vocab.word,
-                style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    vocab.word,
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  if (vocab.ipa.isNotEmpty)
+                    Text(
+                      vocab.ipa,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: theme.colorScheme.primary.withOpacity(0.6),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                ],
               ),
             ),
             IconButton(
@@ -226,13 +240,28 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        vocab.word,
-                        style: GoogleFonts.outfit(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            vocab.word,
+                            style: GoogleFonts.outfit(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          if (vocab.ipa.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              vocab.ipa,
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                color: theme.colorScheme.primary.withOpacity(0.6),
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       Text(
                         vocab.meaning,

@@ -150,6 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final vocabWithSentences = Vocabulary(
           id: vocab.id,
           word: vocab.word.trim(), // Clean up any spaces
+          ipa: vocab.ipa,
           meaning: vocab.meaning,
           meaningId: vocab.meaningId,
           category: vocab.category,

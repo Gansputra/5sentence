@@ -22,7 +22,7 @@ class GeminiService {
     );
 
     final prompt =
-        '5 English sentences for "$word" + ID translations & 10 vocab items (word, meaning_en, meaning_id, category).';
+        '5 English sentences for "$word" + ID translations & 10 vocab items (word, ipa, meaning_en, meaning_id, category).';
 
     print('Requesting Gemini with model: $modelId');
 
@@ -64,11 +64,12 @@ class GeminiService {
                     'type': 'object',
                     'properties': {
                       'word': {'type': 'string'},
+                      'ipa': {'type': 'string'},
                       'meaning_en': {'type': 'string'},
                       'meaning_id': {'type': 'string'},
                       'category': {'type': 'string'},
                     },
-                    'required': ['word', 'meaning_en', 'meaning_id', 'category'],
+                    'required': ['word', 'ipa', 'meaning_en', 'meaning_id', 'category'],
                   },
                 },
               },
@@ -133,6 +134,7 @@ class GeminiService {
           .map((item) {
             return Vocabulary(
               word: item['word']?.toString() ?? '',
+              ipa: item['ipa']?.toString() ?? '',
               meaning: item['meaning_en']?.toString() ?? '',
               meaningId: item['meaning_id']?.toString() ?? '',
               category: item['category']?.toString() ?? 'Common Word',
