@@ -12,21 +12,31 @@ class GeminiService {
   Future<GeminiResponse> generateContent(String word, String modelId) async {
     String? apiKey = await _storageService.getActiveKey();
     if (apiKey == null || apiKey.isEmpty) {
-      throw Exception('Gemini API Key is missing. Please go to Settings and enter your API Key.');
+      throw Exception(
+        'Gemini API Key is missing. Please go to Settings and enter your API Key.',
+      );
     }
-    
+
     final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/$modelId:generateContent?key=$apiKey');
+      'https://generativelanguage.googleapis.com/v1beta/models/$modelId:generateContent?key=$apiKey',
+    );
 
-    final prompt = '''
-Create 5 English sentences with "$word" (with Indonesian translations).
-Also, list every unique word from those sentences with its Indonesian meaning and category (Noun, Verb, Adjective, etc.).
+    final prompt =
+        '''
+Create exactly 5 English sentences using the word "$word" and provide their Indonesian translations.
+Also, extract all unique vocabulary words from those sentences with their Indonesian meanings and grammatical categories (Noun, Verb, etc.).
 
-Return ONLY a JSON with this structure:
+Return the data STRICTLY as a JSON object with this exact structure:
 {
-  "sentences": [{"en": "...", "id": "..."}],
-  "vocabulary": [{"word": "...", "meaning": "...", "category": "..."}]
+  "sentences": [
+    {"en": "Sentence in English", "id": "Terjemahan Bahasa Indonesia"}
+  ],
+  "vocabulary": [
+    {"word": "Word", "meaning": "Arti", "category": "Category"}
+  ]
 }
+
+IMPORTANT: Ensure the JSON is complete and valid. Do not include any text before or after the JSON.
 ''';
 
     print('Requesting Gemini with model: $modelId');
@@ -39,28 +49,58 @@ Return ONLY a JSON with this structure:
           'contents': [
             {
               'parts': [
-                {'text': prompt}
-              ]
-            }
+                {'text': prompt},
+              ],
+            },
           ],
           'generationConfig': {
-            'temperature': 0.1, // Lower temperature for more consistent JSON
+            'temperature': 0.1,
             'topK': 40,
             'topP': 0.95,
             'maxOutputTokens': 4096,
-            'responseMimeType': 'application/json', // Force JSON response
-          }
+            'responseMimeType': 'application/json',
+            'responseSchema': {
+              'type': 'object',
+              'properties': {
+                'sentences': {
+                  'type': 'array',
+                  'items': {
+                    'type': 'object',
+                    'properties': {
+                      'en': {'type': 'string'},
+                      'id': {'type': 'string'},
+                    },
+                    'required': ['en', 'id'],
+                  },
+                },
+                'vocabulary': {
+                  'type': 'array',
+                  'items': {
+                    'type': 'object',
+                    'properties': {
+                      'word': {'type': 'string'},
+                      'meaning': {'type': 'string'},
+                      'category': {'type': 'string'},
+                    },
+                    'required': ['word', 'meaning', 'category'],
+                  },
+                },
+              },
+              'required': ['sentences', 'vocabulary'],
+            },
+          },
         }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         if (data['candidates'] == null || data['candidates'].isEmpty) {
-           throw Exception('No candidates returned from Gemini.');
+          throw Exception('No candidates returned from Gemini.');
         }
 
-        final String text = data['candidates'][0]['content']['parts'][0]['text'];
+        final String text =
+            data['candidates'][0]['content']['parts'][0]['text'];
         return _parseResponse(text);
       } else {
         throw Exception('API Error (${response.statusCode}): ${response.body}');
@@ -72,29 +112,111 @@ Return ONLY a JSON with this structure:
   }
 
   GeminiResponse _parseResponse(String text) {
+    String cleanText = text.trim();
+
+    // 1. Robust JSON Extraction: Handle potential markdown code blocks
+    if (cleanText.contains('```')) {
+      final regex = RegExp(r'```(?:json)?\s*([\s\S]*?)\s*```');
+      final match = regex.firstMatch(cleanText);
+      if (match != null) {
+        cleanText = match.group(1)!.trim();
+      }
+    }
+
     try {
-      // Clean output just in case (though responseMimeType should handle it)
-      final cleanText = text.trim();
+      // 2. Pre-parsing Cleanup: Fix common trailing comma issues
+      cleanText = cleanText.replaceAll(RegExp(r',\s*([\]}])'), r'$1');
+
       final Map<String, dynamic> data = jsonDecode(cleanText);
-      
+
       final List<dynamic> sentenceList = data['sentences'] ?? [];
       final List<dynamic> vocabList = data['vocabulary'] ?? [];
-      
-      final sentences = sentenceList.map((item) => SentencePair(
-        english: item['en'] ?? '',
-        indonesian: item['id'] ?? '',
-      )).toList();
-      
-      final vocabulary = vocabList.map((item) => Vocabulary(
-        word: item['word'] ?? '',
-        meaning: item['meaning'] ?? '',
-        category: item['category'] ?? 'Common Word',
-      )).toList();
-      
+
+      final sentences = sentenceList
+          .map((item) {
+            if (item is! Map) return SentencePair(english: '', indonesian: '');
+            return SentencePair(
+              english: item['en']?.toString() ?? '',
+              indonesian: item['id']?.toString() ?? '',
+            );
+          })
+          .where((s) => s.english.isNotEmpty)
+          .toList();
+
+      final vocabulary = vocabList
+          .map((item) {
+            if (item is! Map)
+              return Vocabulary(word: '', meaning: '', category: '');
+            return Vocabulary(
+              word: item['word']?.toString() ?? '',
+              meaning: item['meaning']?.toString() ?? '',
+              category: item['category']?.toString() ?? 'Common Word',
+            );
+          })
+          .where((v) => v.word.isNotEmpty)
+          .toList();
+
+      if (sentences.isEmpty) {
+        throw Exception("Gemini returned an empty list of sentences.");
+      }
+
       return GeminiResponse(sentences: sentences, vocabulary: vocabulary);
     } catch (e) {
       print('Parsing Error: $e. Raw text: $text');
-      throw Exception("Failed to parse AI response: $e");
+
+      // 3. Last Resort: Try to "repair" truncated JSON if it looks like it's cut off
+      if (e is FormatException &&
+          (cleanText.endsWith('"') ||
+              cleanText.endsWith(':') ||
+              cleanText.endsWith(',') ||
+              !cleanText.endsWith('}'))) {
+        try {
+          final repairedJson = _repairTruncatedJson(cleanText);
+          if (repairedJson != null) {
+            print('Attempting to parse repaired JSON...');
+            return _parseResponse(repairedJson);
+          }
+        } catch (repairError) {
+          print('Repair failed: $repairError');
+        }
+      }
+
+      throw Exception("Failed to parse AI response. Please try again.");
+    }
+  }
+
+  /// Extremely simple JSON repair for common truncation scenarios
+  String? _repairTruncatedJson(String jsonStr) {
+    // Count open/close delimiters
+    int openBraces = '{'.allMatches(jsonStr).length;
+    int closeBraces = '}'.allMatches(jsonStr).length;
+    int openBrackets = '['.allMatches(jsonStr).length;
+    int closeBrackets = ']'.allMatches(jsonStr).length;
+
+    String repaired = jsonStr.trim();
+
+    // If it ends mid-key or mid-value, try to close the quote
+    if (repaired.split('"').length % 2 == 0) {
+      repaired += '"';
+    }
+
+    // Close objects and arrays in reverse order
+    while (openBrackets > closeBrackets) {
+      repaired += '}]'; // Attempt to close current item then array
+      closeBrackets++;
+      closeBraces++; // Assuming inside an object inside array
+    }
+
+    while (openBraces > closeBraces) {
+      repaired += '}';
+      closeBraces++;
+    }
+
+    try {
+      jsonDecode(repaired);
+      return repaired;
+    } catch (_) {
+      return null;
     }
   }
 }

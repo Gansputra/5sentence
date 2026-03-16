@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:typed_data';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../config/constants.dart';
@@ -13,6 +14,15 @@ import 'settings_screen.dart';
 import 'vocabulary_screen.dart';
 import '../services/tts_service.dart';
 import '../config/theme_config.dart';
+import '../widgets/study_card_export.dart';
+import 'package:screenshot/screenshot.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'dart:io';
+import '../main.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,6 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<ApiKey> _apiKeys = [];
   ApiKey? _activeKey;
+  
+  final ScreenshotController _screenshotController = ScreenshotController();
 
   @override
   void initState() {
@@ -248,6 +260,166 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _exportAsImage() async {
+    if (_sentences.isEmpty) return;
+
+    final themeName = themeNotifier.value;
+    final currentTheme = AppTheme.themes.firstWhere((t) => t.name == themeName);
+
+    // Create the widget we want to screenshot
+    final exportWidget = StudyCardExport(
+      word: _wordController.text.trim(),
+      sentences: _sentences,
+      theme: currentTheme,
+    );
+
+    setState(() => _isLoading = true);
+
+    try {
+      final Uint8List? imageBytes = await _screenshotController.captureFromWidget(
+        exportWidget,
+        delay: const Duration(milliseconds: 200),
+        targetSize: const Size(1080, 1920),
+      );
+
+      if (imageBytes != null) {
+        final directory = await getTemporaryDirectory();
+        final imagePath = await File('${directory.path}/study_card.png').create();
+        await imagePath.writeAsBytes(imageBytes);
+
+        await Share.shareXFiles(
+          [XFile(imagePath.path)],
+          text: 'Check out my new vocabulary word: ${_wordController.text.trim()}!',
+        );
+      }
+    } catch (e) {
+      print("Export error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to export image: $e")),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _exportAsPdf() async {
+    if (_sentences.isEmpty) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final pdf = pw.Document();
+      final font = await PdfGoogleFonts.interRegular();
+      final fontBold = await PdfGoogleFonts.outfitBold();
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          build: (pw.Context context) {
+            return pw.Padding(
+              padding: const pw.EdgeInsets.all(32),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text("Vocabulary Study Note", style: pw.TextStyle(font: fontBold, fontSize: 14, color: PdfColors.grey700)),
+                  pw.SizedBox(height: 8),
+                  pw.Text(_wordController.text.trim().toUpperCase(), style: pw.TextStyle(font: fontBold, fontSize: 36, color: PdfColors.teal)),
+                  pw.SizedBox(height: 32),
+                  pw.Divider(),
+                  pw.SizedBox(height: 32),
+                  ..._sentences.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final pair = entry.value;
+                    return pw.Padding(
+                      padding: const pw.EdgeInsets.only(bottom: 24),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Row(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text("${index + 1}. ", style: pw.TextStyle(font: fontBold, fontSize: 16)),
+                              pw.Expanded(child: pw.Text(pair.english, style: pw.TextStyle(font: font, fontSize: 16, fontWeight: pw.FontWeight.bold))),
+                            ],
+                          ),
+                          pw.SizedBox(height: 8),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.only(left: 20),
+                            child: pw.Text(pair.indonesian, style: pw.TextStyle(font: font, fontSize: 14, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  pw.Spacer(),
+                  pw.Divider(),
+                  pw.SizedBox(height: 8),
+                  pw.Center(child: pw.Text("Created with 5Sentence App", style: pw.TextStyle(font: font, fontSize: 10, color: PdfColors.grey500))),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+
+      await Printing.sharePdf(bytes: await pdf.save(), filename: 'study_note_${_wordController.text.trim()}.pdf');
+    } catch (e) {
+      print("PDF Export error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to export PDF: $e")),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showExportOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Export Sentences",
+              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), shape: BoxShape.circle),
+                child: const Icon(Icons.image_outlined, color: Colors.blue),
+              ),
+              title: const Text("Export as Study Card (Image)"),
+              subtitle: const Text("Perfect for Instagram Stories or gallery"),
+              onTap: () {
+                Navigator.pop(context);
+                _exportAsImage();
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), shape: BoxShape.circle),
+                child: const Icon(Icons.picture_as_pdf_outlined, color: Colors.red),
+              ),
+              title: const Text("Export as Study Note (PDF)"),
+              subtitle: const Text("Good for printing or long-term archiving"),
+              onTap: () {
+                Navigator.pop(context);
+                _exportAsPdf();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _copyToClipboard() {
     if (_sentences.isEmpty) return;
     final text = _sentences.asMap().entries.map((e) => "${e.key + 1}. ${e.value.english}\n   (${e.value.indonesian})").join('\n\n');
@@ -295,6 +467,12 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.copy_all),
               onPressed: _copyToClipboard,
               tooltip: "Copy All Sentences",
+            ),
+          if (_sentences.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.ios_share_rounded),
+              onPressed: _showExportOptions,
+              tooltip: "Export Sentences",
             ),
         ],
       ),
