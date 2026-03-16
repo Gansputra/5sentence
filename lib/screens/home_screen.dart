@@ -151,6 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
           id: vocab.id,
           word: vocab.word.trim(), // Clean up any spaces
           meaning: vocab.meaning,
+          meaningId: vocab.meaningId,
           category: vocab.category,
           sentences: response.sentences,
         );

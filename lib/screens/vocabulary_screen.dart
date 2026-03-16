@@ -154,8 +154,19 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
             const SizedBox(height: 4),
             Text(
               vocab.meaning,
-              style: GoogleFonts.inter(fontSize: 14),
+              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
             ),
+            if (vocab.meaningId.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                vocab.meaningId,
+                style: GoogleFonts.inter(
+                  fontSize: 13, 
+                  fontStyle: FontStyle.italic,
+                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -227,9 +238,19 @@ class _VocabularyScreenState extends State<VocabularyScreen> {
                         vocab.meaning,
                         style: GoogleFonts.inter(
                           fontSize: 16,
-                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
+                      if (vocab.meaningId.isNotEmpty)
+                        Text(
+                          vocab.meaningId,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontStyle: FontStyle.italic,
+                            color: theme.colorScheme.secondary,
+                          ),
+                        ),
                     ],
                   ),
                 ),
