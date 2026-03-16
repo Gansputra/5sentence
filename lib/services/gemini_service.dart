@@ -22,22 +22,7 @@ class GeminiService {
     );
 
     final prompt =
-        '''
-Create exactly 5 English sentences using the word "$word" and provide their Indonesian translations.
-Also, extract up to 10 most interesting vocabulary words from those sentences with their Indonesian meanings and grammatical categories (Noun, Verb, etc.).
-
-Return the data STRICTLY as a JSON object with this exact structure:
-{
-  "sentences": [
-    {"en": "Sentence in English", "id": "Terjemahan Bahasa Indonesia"}
-  ],
-  "vocabulary": [
-    {"word": "Word", "meaning": "Arti", "category": "Category"}
-  ]
-}
-
-IMPORTANT: Ensure the JSON is complete and valid. Do not include any text before or after the JSON.
-''';
+        '5 English sentences for "$word" + ID translations & 10 vocab items.';
 
     print('Requesting Gemini with model: $modelId');
 
