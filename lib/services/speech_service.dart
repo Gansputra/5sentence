@@ -19,12 +19,21 @@ class SpeechService {
     }
     
     if (status.isGranted) {
-      _isInitialized = await _speech.initialize(
-        onError: (val) => print('STT Error: $val'),
-        onStatus: (val) => print('STT Status: $val'),
-      );
-      return _isInitialized;
+      try {
+        _isInitialized = await _speech.initialize(
+          onError: (val) => print('STT Error: ${val.errorMsg} - ${val.permanent}'),
+          onStatus: (val) => print('STT Status: $val'),
+        );
+        if (!_isInitialized) {
+          print('STT could not be initialized. Is Google app installed/updated?');
+        }
+        return _isInitialized;
+      } catch (e) {
+        print('STT Init Exception: $e');
+        return false;
+      }
     }
+    print('Microphone permission denied');
     return false;
   }
 
@@ -32,20 +41,42 @@ class SpeechService {
     required Function(String) onResult,
     required Function(bool) onListeningStateChanged,
   }) async {
+    final bool available = await _speech.initialize();
+    if (!available) {
+      print('Speech recognition is not available on this device');
+      onListeningStateChanged(false);
+      return;
+    }
+
     if (!_isInitialized) {
       final success = await init();
-      if (!success) return;
+      if (!success) {
+        onListeningStateChanged(false);
+        return;
+      }
     }
 
     onListeningStateChanged(true);
+    
+    // Get available locales and try to find English
+    List<stt.LocaleName> locales = await _speech.locales();
+    stt.LocaleName? englishLocale;
+    try {
+      englishLocale = locales.firstWhere((local) => local.localeId.contains('en'));
+    } catch (_) {
+      // Fallback to system locale if English not found
+    }
+
     await _speech.listen(
       onResult: (val) {
         onResult(val.recognizedWords);
       },
-      localeId: 'en_US', // Always listen for English
+      localeId: englishLocale?.localeId ?? 'en_US',
       listenFor: const Duration(seconds: 30),
       pauseFor: const Duration(seconds: 5),
       partialResults: true,
+      cancelOnError: true,
+      listenMode: stt.ListenMode.confirmation,
     );
   }
 
